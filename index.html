@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jogo da Forca Online</title>
+<script type="module">
+  // ====== FIREBASE CONFIG ======
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+  import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyBdxd54oFM3eWH1duC5BTdJzjGGRDLMq-Q",
+    authDomain: "mary-cb817.firebaseapp.com",
+    databaseURL: "https://mary-cb817-default-rtdb.firebaseio.com",
+    projectId: "mary-cb817",
+    storageBucket: "mary-cb817.firebasestorage.app",
+    messagingSenderId: "887348832569",
+    appId: "1:887348832569:web:c6d9c32a1a1c402b8960e8",
+    measurementId: "G-86HWEH554E"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+
+  // ====== VARIÁVEIS DO JOGO ======
+  let currentWord = '';
+  let displayWord = [];
+  let errors = 6;
+  let wrongLetters = [];
+
+  // ====== ELEMENTOS HTML ======
+  const player1Div = document.getElementById('player1Div');
+  const player2Div = document.getElementById('player2Div');
+  const wordInput = document.getElementById('wordInput');
+  const wordDisplay = document.getElementById('wordDisplay');
+  const errorsLeft = document.getElementById('errorsLeft');
+  const wrongLettersEl = document.getElementById('wrongLetters');
+  const letterInput = document.getElementById('letterInput');
+
+  // ====== FUNÇÕES ======
+  window.submitWord = function() {
+    const word = wordInput.value.trim().toUpperCase();
+    if(!word) return alert('Digite uma palavra!');
+    set(ref(db, 'forca/word'), word);
+    set(ref(db, 'forca/guesses'), {}); // limpar palpites
+    set(ref(db, 'forca/errors'), 6);
+    set(ref(db, 'forca/wrongLetters'), []);
+    player1Div.classList.add('hidden');
+    player2Div.classList.remove('hidden');
+  }
+
+  onValue(ref(db, 'forca/word'), snapshot => {
+    currentWord = snapshot.val() || '';
+    displayWord = currentWord.split('').map(l => '_');
+    updateDisplay();
+  });
+
+  onValue(ref(db, 'forca/errors'), snapshot => {
+    errors = snapshot.val();
+    errorsLeft.textContent = errors;
+  });
+
+  onValue(ref(db, 'forca/wrongLetters'), snapshot => {
+    wrongLetters = snapshot.val() || [];
+    wrongLettersEl.textContent = wrongLetters.join(', ');
+  });
+
+  onValue(ref(db, 'forca/guesses'), snapshot => {
+    const guesses = snapshot.val() || {};
+    displayWord = currentWord.split('').map(l => guesses[l] ? l : '_');
+    updateDisplay();
+    checkWinLose();
+  });
+
+  function updateDisplay() {
+    wordDisplay.innerHTML = displayWord.map(l => `<span class="letter-box">${l}</span>`).join('');
+  }
+
+  window.guessLetter = function() {
+    const letter = letterInput.value.trim().toUpperCase();
+    letterInput.value = '';
+    if(!letter || letter.length !== 1) return;
+
+    set(ref(db, 'forca/guesses/' + letter), true);
+
+    if(!currentWord.includes(letter) && !wrongLetters.includes(letter)) {
+      wrongLetters.push(letter);
+      errors--;
+      set(ref(db, 'forca/wrongLetters'), wrongLetters);
+      set(ref(db, 'forca/errors'), errors);
+    }
+  }
+
+  function checkWinLose() {
+    if(!displayWord.includes('_')) {
+      alert('Jogador 2 venceu! Agora ele escolhe a palavra.');
+      resetGame();
+    }
+    if(errors <= 0) {
+      alert('Jogador 1 venceu! Agora ele escolhe a palavra.');
+      resetGame();
+    }
+  }
+
+  function resetGame() {
+    set(ref(db, 'forca/word'), '');
+    set(ref(db, 'forca/guesses'), {});
+    set(ref(db, 'forca/errors'), 6);
+    set(ref(db, 'forca/wrongLetters'), []);
+    player1Div.classList.remove('hidden');
+    player2Div.classList.add('hidden');
+    wordInput.value = '';
+  }
+</script>
+<style>
+    body { font-family: Arial; display:flex; flex-direction:column; align-items:center; padding:20px; }
+    .hidden { display:none; }
+    .letter-box { display:inline-block; width:30px; border-bottom:2px solid #000; text-align:center; margin:2px; font-size:24px; }
+    .wrong-letters { color:red; }
+    button { padding:10px 20px; margin:5px; }
+</style>
+</head>
+<body>
+
+<h1>Jogo da Forca Online</h1>
+
+<div id="player1Div">
+  <h2>Jogador 1: Escolha a palavra</h2>
+  <input type="text" id="wordInput" placeholder="Digite a palavra" />
+  <button onclick="submitWord()">Enviar Palavra</button>
+</div>
+
+<div id="player2Div" class="hidden">
+  <h2>Jogador 2: Adivinhe a palavra</h2>
+  <div id="wordDisplay"></div>
+  <p>Erros restantes: <span id="errorsLeft">6</span></p>
+  <div>
+    <input type="text" id="letterInput" maxlength="1" placeholder="Escolha uma letra"/>
+    <button onclick="guessLetter()">Chutar Letra</button>
+  </div>
+  <p>Letras erradas: <span id="wrongLetters" class="wrong-letters"></span></p>
+</div>
+
+</body>
+</html>
